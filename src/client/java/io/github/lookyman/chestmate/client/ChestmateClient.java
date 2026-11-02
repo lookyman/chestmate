@@ -16,7 +16,7 @@ public class ChestmateClient implements ClientModInitializer {
 			if (ScreenButtons.supports(screen)) {
 				ScreenButtons.attach(screen);
 				Shortcuts.attach(screen);
-				ScreenEvents.remove(screen).register(removed -> Dispatcher.abort());
+				ScreenEvents.remove(screen).register(removed -> Dispatcher.stop());
 			}
 		});
 		ClientTickEvents.END_CLIENT_TICK.register(minecraft -> Dispatcher.tick());

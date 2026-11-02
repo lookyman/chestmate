@@ -44,7 +44,7 @@ public final class Dispatcher {
 			return;
 		}
 		Optional<MenuRegions> found = MenuRegions.of(menu);
-		if (found.isEmpty() || !op.supportedBy(found.get()) || !menu.getCarried().isEmpty() || EXECUTOR.isRunning()) {
+		if (found.isEmpty() || !op.supportedBy(found.get()) || !menu.getCarried().isEmpty() || EXECUTOR.isBusy()) {
 			return;
 		}
 		MenuRegions regions = found.get();
@@ -73,8 +73,11 @@ public final class Dispatcher {
 		EXECUTOR.tick(ChestmateConfig.get().clicksPerTick);
 	}
 
-	/** Stops a click run, e.g. because its screen closed. */
-	public static void abort() {
-		EXECUTOR.abort();
+	/**
+	 * Stops a click run without sending another click, because its screen is closing. Vanilla's close handling returns
+	 * a cursor stack to the inventory; for the inventory menu a click now would land after the close packet.
+	 */
+	public static void stop() {
+		EXECUTOR.stop();
 	}
 }
