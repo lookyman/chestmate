@@ -13,15 +13,20 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 
 public class Chestmate implements ModInitializer {
 	public static final String MOD_ID = "chestmate";
-	/** Test switch: pretend the server lacks the mod, to exercise the client-only path. */
+	/**
+	 * Server-only test switch, not a player setting: with {@code -Dchestmate.disableServer=true} the server in this JVM
+	 * (dedicated or integrated) registers no request receiver, so clients see a server without Chestmate and use the
+	 * click path. The payload type stays registered, so a client launched with the switch can still send to a server
+	 * that has Chestmate.
+	 */
 	public static final String DISABLE_SERVER_PROPERTY = "chestmate.disableServer";
 
 	@Override
 	public void onInitialize() {
+		PayloadTypeRegistry.serverboundPlay().register(OperationRequest.TYPE, OperationRequest.STREAM_CODEC);
 		if (Boolean.getBoolean(DISABLE_SERVER_PROPERTY)) {
 			return;
 		}
-		PayloadTypeRegistry.serverboundPlay().register(OperationRequest.TYPE, OperationRequest.STREAM_CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(OperationRequest.TYPE,
 			(request, context) -> handle(context.player(), request));
 	}
