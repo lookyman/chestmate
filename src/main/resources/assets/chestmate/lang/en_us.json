@@ -1,5 +1,13 @@
 {
 	"chestmate.config.title": "Chestmate Settings",
 	"chestmate.config.click_speed": "Click speed: %s/s",
-	"chestmate.config.click_speed.safe": "Click speed: %s/s (safe)"
+	"chestmate.config.click_speed.safe": "Click speed: %s/s (safe)",
+	"chestmate.button.organize_container": "Organize chest",
+	"chestmate.button.organize_inventory": "Organize inventory",
+	"chestmate.button.put_in": "Put everything in",
+	"chestmate.button.take_out": "Take everything out",
+	"key.chestmate.organize": "Organize",
+	"key.chestmate.put_in": "Put everything in",
+	"key.chestmate.take_out": "Take everything out",
+	"key.category.chestmate.main": "Chestmate"
 }

@@ -2,7 +2,7 @@
 	"required": true,
 	"package": "io.github.lookyman.chestmate.client.mixin",
 	"compatibilityLevel": "JAVA_25",
-	"client": [],
+	"client": ["AbstractContainerScreenAccessor"],
 	"injectors": {
 		"defaultRequire": 1
 	}
