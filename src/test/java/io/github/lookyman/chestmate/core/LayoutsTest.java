@@ -70,11 +70,24 @@ class LayoutsTest {
 		Item[] items = {Items.STONE, Items.DIRT, Items.ENDER_PEARL, Items.DIAMOND_SWORD, Items.APPLE, Items.OAK_LOG};
 		List<ItemStack> in = new ArrayList<>();
 		for (int i = 0; i < 54; i++) {
-			in.add(s(items[i % items.length], 1 + (i * 7) % 16));
+			Item item = items[i % items.length];
+			int max = new ItemStack(item).getMaxStackSize();
+			ItemStack stack = s(item, 1 + (i * 7) % max);
+			if (item == Items.DIAMOND_SWORD && i % 12 == 3) {
+				stack.set(DataComponents.CUSTOM_NAME, Component.literal("Bob"));
+			}
+			in.add(stack);
 		}
 		List<ItemStack> once = Layouts.organize(in, SlotRules.vanilla(), ORDER);
-		assertStacks(once, Layouts.organize(once, SlotRules.vanilla(), ORDER));
 		assertTrue(Counts.same(in, once));
+		// Must really have merged and packed, not fallen back to the unchanged input.
+		long usedBefore = in.stream().filter(x -> !x.isEmpty()).count();
+		long usedAfter = once.stream().filter(x -> !x.isEmpty()).count();
+		assertTrue(usedAfter < usedBefore, "expected merging: " + usedAfter + " vs " + usedBefore);
+		for (int i = 0; i < once.size(); i++) {
+			assertEquals(i >= usedAfter, once.get(i).isEmpty(), "packed from 0 at " + i);
+		}
+		assertStacks(once, Layouts.organize(once, SlotRules.vanilla(), ORDER));
 	}
 
 	@Test
