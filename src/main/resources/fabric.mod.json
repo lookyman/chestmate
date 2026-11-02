@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "chestmate",
+	"version": "${version}",
+	"name": "Chestmate",
+	"description": "Organize, put everything in and take everything out of chests, barrels and shulker boxes. Works on any server; instant when the server has it too.",
+	"authors": [
+		"lookyman"
+	],
+	"license": "TBD",
+	"icon": "assets/chestmate/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"io.github.lookyman.chestmate.Chestmate"
+		],
+		"client": [
+			"io.github.lookyman.chestmate.client.ChestmateClient"
+		]
+	},
+	"mixins": [
+		"chestmate.mixins.json",
+		{
+			"config": "chestmate.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"modmenu": "*"
+	}
+}
