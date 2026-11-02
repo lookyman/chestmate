@@ -61,7 +61,7 @@ public final class Dispatcher {
 		try {
 			plan = ClickPlanner.plan(op, regions, snapshot, rules,
 				CreativeOrder.forWorld(level.enabledFeatures(), level.registryAccess()));
-		} catch (IllegalStateException e) {
+		} catch (RuntimeException e) {
 			LOGGER.warn("Chestmate could not plan {}; doing nothing", op, e);
 			return;
 		}

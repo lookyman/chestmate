@@ -25,6 +25,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
@@ -206,5 +207,19 @@ class CreativeOrderTest {
 		List<ItemStack> in = new ArrayList<>(List.of(swordC, appleB, swordA));
 		in.sort(cmp);
 		assertEquals(List.of(appleB, swordA, swordC), in);
+	}
+
+	@Test
+	void aTabWhoseGeneratorThrowsIsSkipped() {
+		CreativeModeTab.ItemDisplayParameters parameters =
+			new CreativeModeTab.ItemDisplayParameters(FeatureFlags.DEFAULT_FLAGS, false, lookup());
+		CreativeModeTab.DisplayItemsGenerator first = (p, out) -> out.accept(new ItemStack(Items.DIRT));
+		CreativeModeTab.DisplayItemsGenerator broken = (p, out) -> {
+			out.accept(new ItemStack(Items.APPLE));
+			throw new IllegalArgumentException("broken tab");
+		};
+		CreativeModeTab.DisplayItemsGenerator last = (p, out) -> out.accept(new ItemStack(Items.STONE));
+		List<ItemStack> items = CreativeOrder.collect(List.of(first, broken, last), parameters, FeatureFlags.DEFAULT_FLAGS);
+		assertEquals(List.of(Items.DIRT, Items.STONE), items(items));
 	}
 }

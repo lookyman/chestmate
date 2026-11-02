@@ -47,6 +47,7 @@ public final class CreativeOrder {
 
 	private static final Logger LOGGER = LogUtils.getLogger();
 	private static final AtomicBoolean WARNED = new AtomicBoolean();
+	private static final AtomicBoolean TAB_WARNED = new AtomicBoolean();
 	private static final int MAX_CACHED = 4;
 
 	private record Cached(FeatureFlagSet flags, HolderLookup.Provider registries, Comparator<ItemStack> order) {
@@ -176,17 +177,38 @@ public final class CreativeOrder {
 
 	/** The search tab's list, in vanilla order: category tabs in registry order, deduped by item + components. */
 	static List<ItemStack> searchTabItems(FeatureFlagSet flags, HolderLookup.Provider registries) {
-		CreativeModeTab.ItemDisplayParameters parameters = new CreativeModeTab.ItemDisplayParameters(flags, false, registries);
-		Set<ItemStack> result = ItemStackLinkedSet.createTypeAndComponentsSet();
-		CreativeModeTab.Output output = (stack, visibility) -> {
-			if (visibility != CreativeModeTab.TabVisibility.PARENT_TAB_ONLY && stack.getItem().isEnabled(flags)) {
-				result.add(stack);
-			}
-		};
+		List<CreativeModeTab.DisplayItemsGenerator> generators = new ArrayList<>();
 		for (CreativeModeTab tab : BuiltInRegistries.CREATIVE_MODE_TAB) {
 			if (tab.getType() == CreativeModeTab.Type.CATEGORY) {
-				((CreativeModeTabAccessor) tab).chestmate$getDisplayItemsGenerator().accept(parameters, output);
+				generators.add(((CreativeModeTabAccessor) tab).chestmate$getDisplayItemsGenerator());
 			}
+		}
+		return collect(generators, new CreativeModeTab.ItemDisplayParameters(flags, false, registries), flags);
+	}
+
+	/**
+	 * Runs each tab's generator in order, deduped by item + components. A generator that throws (a broken modded tab)
+	 * contributes nothing; its items then sort last.
+	 */
+	static List<ItemStack> collect(List<CreativeModeTab.DisplayItemsGenerator> generators,
+		CreativeModeTab.ItemDisplayParameters parameters, FeatureFlagSet flags) {
+		Set<ItemStack> result = ItemStackLinkedSet.createTypeAndComponentsSet();
+		for (CreativeModeTab.DisplayItemsGenerator generator : generators) {
+			List<ItemStack> tabItems = new ArrayList<>();
+			CreativeModeTab.Output output = (stack, visibility) -> {
+				if (visibility != CreativeModeTab.TabVisibility.PARENT_TAB_ONLY && stack.getItem().isEnabled(flags)) {
+					tabItems.add(stack);
+				}
+			};
+			try {
+				generator.accept(parameters, output);
+			} catch (RuntimeException e) {
+				if (TAB_WARNED.compareAndSet(false, true)) {
+					LOGGER.warn("Chestmate: a creative tab failed to list its items; its items sort last", e);
+				}
+				continue;
+			}
+			result.addAll(tabItems);
 		}
 		return new ArrayList<>(result);
 	}
