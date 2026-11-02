@@ -19,6 +19,11 @@ public final class ServerOperations {
 	private ServerOperations() {
 	}
 
+	/** Mirrors vanilla's click handler: spectators and dead or dying players may not touch containers. */
+	public static boolean mayAct(boolean spectator, boolean deadOrDying, boolean menuStillValid) {
+		return !spectator && !deadOrDying && menuStillValid;
+	}
+
 	public static Result apply(AbstractContainerMenu menu, int requestContainerId, Operation op, ItemStack carried,
 		Comparator<ItemStack> order) {
 		Optional<MenuRegions> regions = MenuRegions.of(menu);

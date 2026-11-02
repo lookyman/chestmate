@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -220,5 +221,13 @@ class ServerOperationsTest {
 		VarInt.write(buf, 7);
 		VarInt.write(buf, 99);
 		assertThrows(RuntimeException.class, () -> OperationRequest.STREAM_CODEC.decode(buf));
+	}
+
+	@Test
+	void playerGuardAllowsOnlyAliveNonSpectatorWithValidMenu() {
+		assertTrue(ServerOperations.mayAct(false, false, true));
+		assertFalse(ServerOperations.mayAct(true, false, true), "spectator");
+		assertFalse(ServerOperations.mayAct(false, true, true), "dead or dying");
+		assertFalse(ServerOperations.mayAct(false, false, false), "menu no longer valid");
 	}
 }

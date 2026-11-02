@@ -29,7 +29,7 @@ public class Chestmate implements ModInitializer {
 	/** Runs on the server thread. Never sends anything to the client: the normal slot sync does that. */
 	private static void handle(ServerPlayer player, OperationRequest request) {
 		AbstractContainerMenu menu = player.containerMenu;
-		if (!menu.stillValid(player)) {
+		if (!ServerOperations.mayAct(player.isSpectator(), player.isDeadOrDying(), menu.stillValid(player))) {
 			return;
 		}
 		MinecraftServer server = player.level().getServer();
