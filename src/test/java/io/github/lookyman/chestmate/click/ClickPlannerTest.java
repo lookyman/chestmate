@@ -18,6 +18,7 @@ import java.util.stream.IntStream;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -193,10 +194,23 @@ class ClickPlannerTest {
 	}
 
 	@Test
-	void organizeFullRegionNeedingBundleSwapPlansNothing() {
-		List<ItemStack> slots = new ArrayList<>(List.of(s(Items.BUNDLE, 1), s(Items.STONE, 64), s(Items.APPLE, 64)));
-		MenuRegions regions = new MenuRegions(range(0, 3), List.of());
-		assertEquals(List.of(), ClickPlanner.plan(Operation.ORGANIZE_CONTAINER, regions, slots, SlotRules.vanilla(), ORDER));
+	void organizeFullRegionWithBundlesSwapsByRightClick() {
+		// Double chest and inventory completely full, no empty slot anywhere, bundles out of place.
+		Item[] items = {Items.STONE, Items.BUNDLE, Items.APPLE, Items.DIRT, Items.ENDER_PEARL};
+		List<ItemStack> slots = new ArrayList<>();
+		for (int i = 0; i < 54 + 36; i++) {
+			Item item = items[(i * 7 + i / 5) % items.length];
+			slots.add(s(item, new ItemStack(item).getMaxStackSize()));
+		}
+		slots.set(3, s(Items.DYED_BUNDLE.pick(DyeColor.BLUE), 1));
+		MenuRegions regions = chestRegions(54);
+		for (Operation op : List.of(Operation.ORGANIZE_CONTAINER, Operation.ORGANIZE_INVENTORY)) {
+			List<Click> plan = ClickPlanner.plan(op, regions, slots, SlotRules.vanilla(), ORDER);
+			assertFalse(plan.isEmpty());
+			assertTrue(plan.stream().anyMatch(c -> c.button() == Click.RIGHT));
+			ClickSim sim = organize(op, regions, slots, SlotRules.vanilla());
+			assertStacks(pick(slots, range(81, 90)), pick(sim.snapshot(), range(81, 90)));
+		}
 	}
 
 	@Test
@@ -222,7 +236,7 @@ class ClickPlannerTest {
 		slots.set(55, s(Items.APPLE, 5));
 		MenuRegions regions = new MenuRegions(range(0, 27), range(27, 54));
 		List<Click> plan = ClickPlanner.plan(Operation.PUT_IN, regions, slots, shulkerRules, ORDER);
-		assertFalse(plan.contains(new Click(27)), "shulker box was clicked");
+		assertTrue(plan.stream().noneMatch(c -> c.menuSlot() == 27), "shulker box was clicked");
 		ClickSim sim = replay(plan, slots, shulkerRules);
 		List<ItemStack> after = sim.snapshot();
 		assertStacks(List.of(s(Items.STONE, 64), s(Items.STONE, 26), s(Items.DIRT, 64), s(Items.ENDER_PEARL, 16)),
@@ -313,10 +327,7 @@ class ClickPlannerTest {
 					List<Integer> region = op == Operation.ORGANIZE_CONTAINER ? regions.container() : regions.main();
 					List<ItemStack> target = Layouts.organize(pick(slots, region),
 						noShulkerInContainer.forRegion(region), ORDER);
-					boolean hasBundle = pick(slots, region).stream().anyMatch(x -> x.is(Items.BUNDLE));
-					if (!plan.isEmpty() || !hasBundle) {
-						assertStacks(target, pick(sim.snapshot(), region));
-					}
+					assertStacks(target, pick(sim.snapshot(), region));
 				} else {
 					List<Integer> from = op == Operation.PUT_IN ? regions.main() : regions.container();
 					List<Integer> to = op == Operation.PUT_IN ? regions.container() : regions.main();

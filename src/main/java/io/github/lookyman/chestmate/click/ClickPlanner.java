@@ -11,19 +11,14 @@ import java.util.List;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * Plans the left-button PICKUP clicks that reach the {@link Layouts} target using only the cursor, for servers
- * without Chestmate. Never shift-clicks, never clicks outside the operation's regions, never plans a click
- * {@link ClickSim#isUnsafe unsafe} (bundles): if the target can't be reached without one, the plan is empty.
+ * Plans the PICKUP clicks that reach the {@link Layouts} target using only the cursor, for servers without
+ * Chestmate. Pick-ups, placements and top-ups are left clicks; every swap (cursor and slot both non-empty and of
+ * different kinds) is a right click, which no bundle hook intercepts. Never shift-clicks (QUICK_MOVE), never uses
+ * number keys (SWAP), never clicks outside the operation's regions and never plans a click
+ * {@link ClickSim#isUnsafe unsafe}.
  */
 public final class ClickPlanner {
 	private ClickPlanner() {
-	}
-
-	/** Thrown internally when the target can't be reached without an unsafe click. */
-	private static final class Unreachable extends Exception {
-		Unreachable() {
-			super(null, null, false, false);
-		}
 	}
 
 	/** A sim plus the clicks applied to it. */
@@ -35,10 +30,14 @@ public final class ClickPlanner {
 			this.sim = sim;
 		}
 
-		void click(int menuSlot) throws Unreachable {
-			Click c = new Click(menuSlot);
+		/** Clicks {@code menuSlot}: right-button when that swaps the cursor with the slot, left-button otherwise. */
+		void click(int menuSlot) {
+			ItemStack carried = sim.carried();
+			ItemStack there = sim.get(menuSlot);
+			boolean swap = !carried.isEmpty() && !there.isEmpty() && !ItemStack.isSameItemSameComponents(carried, there);
+			Click c = swap ? Click.right(menuSlot) : Click.left(menuSlot);
 			if (sim.isUnsafe(c)) {
-				throw new Unreachable();
+				throw new IllegalStateException("planner would click unsafely: " + c);
 			}
 			sim.apply(c);
 			clicks.add(c);
@@ -50,9 +49,9 @@ public final class ClickPlanner {
 	}
 
 	/**
-	 * The clicks that perform {@code op}; empty when there is nothing to do or the target is unreachable without an
-	 * unsafe click. Precondition: the cursor is empty. Throws {@link IllegalStateException} if the planned clicks
-	 * don't reproduce the target exactly (a bug; callers treat it as "do nothing").
+	 * The clicks that perform {@code op}; empty when there is nothing to do. Precondition: the cursor is empty.
+	 * Throws {@link IllegalStateException} if the planned clicks don't reproduce the target exactly or would need an
+	 * unsafe click (a bug; callers treat it as "do nothing").
 	 */
 	public static List<Click> plan(
 		Operation op, MenuRegions regions, List<ItemStack> menuSlots, SlotRules menuRules, Comparator<ItemStack> order
@@ -65,28 +64,24 @@ public final class ClickPlanner {
 		List<ItemStack> regionTarget;
 		List<Integer> otherRegion = null;
 		List<ItemStack> otherTarget = null;
-		try {
-			switch (op) {
-				case ORGANIZE_CONTAINER, ORGANIZE_INVENTORY -> {
-					region = op == Operation.ORGANIZE_CONTAINER ? regions.container() : regions.main();
-					regionTarget = Layouts.organize(pick(menuSlots, region), menuRules.forRegion(region), order);
-					organize(rec, region, regionTarget, menuRules);
-				}
-				case PUT_IN, TAKE_OUT -> {
-					List<Integer> from = op == Operation.PUT_IN ? regions.main() : regions.container();
-					List<Integer> to = op == Operation.PUT_IN ? regions.container() : regions.main();
-					Layouts.Transfer target = Layouts.transfer(pick(menuSlots, from), pick(menuSlots, to),
-						menuRules.forRegion(to));
-					transfer(rec, from, to, menuRules);
-					region = from;
-					regionTarget = target.from();
-					otherRegion = to;
-					otherTarget = target.to();
-				}
-				default -> throw new IllegalArgumentException("unknown operation " + op);
+		switch (op) {
+			case ORGANIZE_CONTAINER, ORGANIZE_INVENTORY -> {
+				region = op == Operation.ORGANIZE_CONTAINER ? regions.container() : regions.main();
+				regionTarget = Layouts.organize(pick(menuSlots, region), menuRules.forRegion(region), order);
+				organize(rec, region, regionTarget, menuRules);
 			}
-		} catch (Unreachable e) {
-			return List.of();
+			case PUT_IN, TAKE_OUT -> {
+				List<Integer> from = op == Operation.PUT_IN ? regions.main() : regions.container();
+				List<Integer> to = op == Operation.PUT_IN ? regions.container() : regions.main();
+				Layouts.Transfer target = Layouts.transfer(pick(menuSlots, from), pick(menuSlots, to),
+					menuRules.forRegion(to));
+				transfer(rec, from, to, menuRules);
+				region = from;
+				regionTarget = target.from();
+				otherRegion = to;
+				otherTarget = target.to();
+			}
+			default -> throw new IllegalArgumentException("unknown operation " + op);
 		}
 
 		List<Click> clicks = List.copyOf(rec.clicks);
@@ -95,14 +90,13 @@ public final class ClickPlanner {
 	}
 
 	/** Merge partials with the cursor, then permute the stacks into place. */
-	private static void organize(Recorder rec, List<Integer> region, List<ItemStack> target, SlotRules rules)
-		throws Unreachable {
+	private static void organize(Recorder rec, List<Integer> region, List<ItemStack> target, SlotRules rules) {
 		merge(rec, region, rules);
 		permute(rec, region, target);
 	}
 
 	/** Until every kind has at most one non-full stack: pick up the last non-full one, top up earlier ones. */
-	private static void merge(Recorder rec, List<Integer> region, SlotRules rules) throws Unreachable {
+	private static void merge(Recorder rec, List<Integer> region, SlotRules rules) {
 		boolean changed = true;
 		while (changed) {
 			changed = false;
@@ -145,7 +139,7 @@ public final class ClickPlanner {
 	}
 
 	/** Puts {@code target[i]} into place for each {@code i}, holding at most one stack on the cursor. */
-	private static void permute(Recorder rec, List<Integer> region, List<ItemStack> target) throws Unreachable {
+	private static void permute(Recorder rec, List<Integer> region, List<ItemStack> target) {
 		for (int i = 0; i < region.size(); i++) {
 			int slotI = region.get(i);
 			ItemStack want = target.get(i);
@@ -169,16 +163,6 @@ public final class ClickPlanner {
 				// Move the stack at i into the empty slot j.
 				rec.click(slotI);
 				rec.click(slotJ);
-			} else if (!have.isEmpty() && (ClickSim.hasOverride(have) || ClickSim.hasOverride(want))) {
-				// Bundles may only be dropped into empty slots: first evict i into an empty slot of the region.
-				int e = firstEmpty(rec, region, i + 1);
-				if (e < 0) {
-					throw new Unreachable();
-				}
-				rec.click(slotI);
-				rec.click(e);
-				rec.click(slotJ);
-				rec.click(slotI);
 			} else if (!have.isEmpty() && ItemStack.isSameItemSameComponents(have, want)
 				&& have.getCount() > want.getCount()) {
 				// i holds the full stack and the partial is wanted: hold the full, top up j, drop the rest in i.
@@ -186,7 +170,8 @@ public final class ClickPlanner {
 				rec.click(slotJ);
 				rec.click(slotI);
 			} else {
-				// Places into empty, swaps with another kind, or tops up i leaving the old partial on the cursor.
+				// Places into empty, swaps (right click) with another kind, or tops up i leaving the old partial on the
+				// cursor.
 				rec.click(slotJ);
 				rec.click(slotI);
 				if (!rec.sim.carried().isEmpty()) {
@@ -199,21 +184,11 @@ public final class ClickPlanner {
 		}
 	}
 
-	private static int firstEmpty(Recorder rec, List<Integer> region, int fromIndex) {
-		for (int k = fromIndex; k < region.size(); k++) {
-			if (rec.get(region.get(k)).isEmpty()) {
-				return region.get(k);
-			}
-		}
-		return -1;
-	}
-
 	/**
 	 * Per source slot in order, mirroring {@link Layouts#transfer}'s allocation: pick it up, top up same-kind
 	 * destination stacks, then fill empty destination slots, and put any rest back into the source.
 	 */
-	private static void transfer(Recorder rec, List<Integer> from, List<Integer> to, SlotRules rules)
-		throws Unreachable {
+	private static void transfer(Recorder rec, List<Integer> from, List<Integer> to, SlotRules rules) {
 		for (int source : from) {
 			ItemStack stack = rec.get(source);
 			if (stack.isEmpty()) {
