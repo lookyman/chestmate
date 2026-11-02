@@ -59,39 +59,57 @@ public final class Shortcuts {
 		return regions.container().isEmpty() ? Operation.ORGANIZE_INVENTORY : Operation.ORGANIZE_CONTAINER;
 	}
 
-	/** Called after every init of a supported screen. */
+	/**
+	 * The operation the first matching shortcut (Organize, then Put in, then Take out) runs on a screen with these
+	 * regions, or empty if none matches or the matched one doesn't apply there; then the input is left to vanilla.
+	 */
+	static Optional<Operation> resolve(Predicate<String> matchesShortcut, int hoveredMenuSlot, MenuRegions regions) {
+		Operation op;
+		if (matchesShortcut.test(ORGANIZE)) {
+			op = organizeTarget(hoveredMenuSlot, regions);
+		} else if (matchesShortcut.test(PUT_IN)) {
+			op = Operation.PUT_IN;
+		} else if (matchesShortcut.test(TAKE_OUT)) {
+			op = Operation.TAKE_OUT;
+		} else {
+			return Optional.empty();
+		}
+		return op.supportedBy(regions) ? Optional.of(op) : Optional.empty();
+	}
+
+	/**
+	 * Called after every init of a supported screen. The shortcuts run before vanilla's input handling and consume the
+	 * input, so a key vanilla also uses in container screens (offhand swap, throw, pick block) does only one thing.
+	 */
 	public static void attach(Screen screen) {
 		if (!ScreenButtons.supports(screen) || !(screen instanceof AbstractContainerScreen<?> containerScreen)) {
 			return;
 		}
-		ScreenKeyboardEvents.afterKeyPress(screen).register((s, event) -> {
-			if (!s.isInputCaptured()) {
-				trigger(containerScreen, mapping -> mapping.matches(event));
-			}
-		});
-		ScreenMouseEvents.afterMouseClick(screen).register((s, event, consumed) ->
-			trigger(containerScreen, mapping -> mapping.matchesMouse(event)) || consumed);
+		ScreenKeyboardEvents.allowKeyPress(screen).register((s, event) ->
+			s.isInputCaptured() || !trigger(containerScreen, mapping -> mapping.matches(event)));
+		ScreenMouseEvents.allowMouseClick(screen).register((s, event) ->
+			!trigger(containerScreen, mapping -> mapping.matchesMouse(event)));
 	}
 
-	/** Runs the first shortcut that matches; true if one did. */
+	/** Runs the operation of the shortcut that matches; true (consume the input) if one ran. */
 	private static boolean trigger(AbstractContainerScreen<?> screen, Predicate<KeyMapping> matches) {
 		Optional<MenuRegions> regions = MenuRegions.of(screen.getMenu());
 		if (regions.isEmpty()) {
 			return false;
 		}
-		if (matches.test(organize)) {
-			Slot hovered = ((AbstractContainerScreenAccessor) screen).chestmate$getHoveredSlot();
-			Dispatcher.run(organizeTarget(hovered == null ? NO_SLOT : hovered.index, regions.get()));
-			return true;
-		}
-		if (matches.test(putIn)) {
-			Dispatcher.run(Operation.PUT_IN);
-			return true;
-		}
-		if (matches.test(takeOut)) {
-			Dispatcher.run(Operation.TAKE_OUT);
-			return true;
-		}
-		return false;
+		Slot hovered = ((AbstractContainerScreenAccessor) screen).chestmate$getHoveredSlot();
+		Optional<Operation> op = resolve(name -> matches.test(mapping(name)), hovered == null ? NO_SLOT : hovered.index,
+			regions.get());
+		op.ifPresent(Dispatcher::run);
+		return op.isPresent();
+	}
+
+	private static KeyMapping mapping(String name) {
+		return switch (name) {
+			case ORGANIZE -> organize;
+			case PUT_IN -> putIn;
+			case TAKE_OUT -> takeOut;
+			default -> throw new IllegalArgumentException(name);
+		};
 	}
 }
