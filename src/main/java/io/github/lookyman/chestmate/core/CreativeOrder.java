@@ -58,8 +58,8 @@ public final class CreativeOrder {
 	}
 
 	/**
-	 * Pure core: orders by position in the given list. Ties are broken by a canonical, JVM-independent
-	 * rendering of the stack's component patch, then registry id, then count descending.
+	 * Pure core: orders by position in the given list. Ties are broken by registry id, then a canonical,
+	 * JVM-independent rendering of the stack's component patch, then count descending.
 	 */
 	public static Comparator<ItemStack> comparator(List<ItemStack> searchTabItems, HolderLookup.Provider registries) {
 		Object2IntOpenCustomHashMap<ItemStack> exact = new Object2IntOpenCustomHashMap<>(VARIANT);
@@ -87,14 +87,17 @@ public final class CreativeOrder {
 		return firstOfItem.getOrDefault(stack.getItem(), Integer.MAX_VALUE);
 	}
 
-	/** Placeholder tie-break (spec); kept in one place. */
+	/**
+	 * Placeholder tie-break (spec); kept in one place. Registry id comes first so that items missing from the list
+	 * (filled maps, written books) stay grouped by item.
+	 */
 	private static int tieBreak(RegistryOps<JsonElement> ops, ItemStack a, ItemStack b) {
-		int c = patchKey(ops, a).compareTo(patchKey(ops, b));
+		int c = Objects.requireNonNull(BuiltInRegistries.ITEM.getKey(a.getItem())).toString()
+			.compareTo(Objects.requireNonNull(BuiltInRegistries.ITEM.getKey(b.getItem())).toString());
 		if (c != 0) {
 			return c;
 		}
-		c = Objects.requireNonNull(BuiltInRegistries.ITEM.getKey(a.getItem())).toString()
-			.compareTo(Objects.requireNonNull(BuiltInRegistries.ITEM.getKey(b.getItem())).toString());
+		c = patchKey(ops, a).compareTo(patchKey(ops, b));
 		if (c != 0) {
 			return c;
 		}

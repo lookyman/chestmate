@@ -192,4 +192,19 @@ class CreativeOrderTest {
 		assertTrue(cmp.compare(new ItemStack(Items.COMMAND_BLOCK), new ItemStack(Items.DIAMOND)) > 0);
 		assertTrue(cmp.compare(new ItemStack(Items.COMMAND_BLOCK), new ItemStack(Items.DIRT)) > 0);
 	}
+
+	@Test
+	void unindexedItemsGroupByItemBeforeComponents() {
+		// neither item is in the list (like filled maps or written books): same item stays together
+		var cmp = CreativeOrder.comparator(List.of(new ItemStack(Items.DIRT)), lookup());
+		ItemStack swordA = new ItemStack(Items.DIAMOND_SWORD);
+		swordA.set(DataComponents.CUSTOM_NAME, Component.literal("A"));
+		ItemStack appleB = new ItemStack(Items.APPLE);
+		appleB.set(DataComponents.CUSTOM_NAME, Component.literal("B"));
+		ItemStack swordC = new ItemStack(Items.DIAMOND_SWORD);
+		swordC.set(DataComponents.CUSTOM_NAME, Component.literal("C"));
+		List<ItemStack> in = new ArrayList<>(List.of(swordC, appleB, swordA));
+		in.sort(cmp);
+		assertEquals(List.of(appleB, swordA, swordC), in);
+	}
 }
