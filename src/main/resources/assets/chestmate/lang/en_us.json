@@ -1,1 +1,5 @@
-{}
+{
+	"chestmate.config.title": "Chestmate Settings",
+	"chestmate.config.click_speed": "Click speed: %s/s",
+	"chestmate.config.click_speed.safe": "Click speed: %s/s (safe)"
+}

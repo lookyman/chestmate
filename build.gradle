@@ -77,3 +77,6 @@ jar {
 test {
 	useJUnitPlatform()
 }
+
+sourceSets.test.compileClasspath += sourceSets.client.output
+sourceSets.test.runtimeClasspath += sourceSets.client.output

@@ -16,6 +16,9 @@
 		],
 		"client": [
 			"io.github.lookyman.chestmate.client.ChestmateClient"
+		],
+		"modmenu": [
+			"io.github.lookyman.chestmate.client.config.ModMenuIntegration"
 		]
 	},
 	"mixins": [
