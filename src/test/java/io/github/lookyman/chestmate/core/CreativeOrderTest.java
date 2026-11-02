@@ -171,6 +171,21 @@ class CreativeOrderTest {
 	}
 
 	@Test
+	void sortReflectsInPlaceComponentChanges() {
+		var cmp = CreativeOrder.comparator(List.of(new ItemStack(Items.DIAMOND_SWORD)), lookup());
+		ItemStack plain = new ItemStack(Items.DIAMOND_SWORD);
+		ItemStack other = new ItemStack(Items.DIAMOND_SWORD);
+		other.setDamageValue(5);
+		List<ItemStack> list = new ArrayList<>(List.of(plain, other));
+		list.sort(cmp);
+		assertEquals(List.of(plain, other), list);
+		plain.setDamageValue(9);
+		other.remove(DataComponents.DAMAGE);
+		list.sort(cmp);
+		assertEquals(List.of(other, plain), list);
+	}
+
+	@Test
 	void vanillaWorldOrder() {
 		var cmp = CreativeOrder.forWorld(FeatureFlags.DEFAULT_FLAGS, lookup());
 		assertTrue(cmp.compare(new ItemStack(Items.STONE), new ItemStack(Items.DIAMOND)) < 0);

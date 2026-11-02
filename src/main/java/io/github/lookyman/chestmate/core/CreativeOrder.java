@@ -12,11 +12,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
 import io.github.lookyman.chestmate.mixin.CreativeModeTabAccessor;
-import java.util.Collections;
+import com.mojang.logging.LogUtils;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.WeakHashMap;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.resources.RegistryOps;
@@ -44,6 +45,8 @@ public final class CreativeOrder {
 		}
 	};
 
+	private static final Logger LOGGER = LogUtils.getLogger();
+	private static final AtomicBoolean WARNED = new AtomicBoolean();
 	private static final int MAX_CACHED = 4;
 
 	private record Cached(FeatureFlagSet flags, HolderLookup.Provider registries, Comparator<ItemStack> order) {
@@ -72,9 +75,8 @@ public final class CreativeOrder {
 			index++;
 		}
 		RegistryOps<JsonElement> ops = registries.createSerializationContext(JsonOps.INSTANCE);
-		Map<ItemStack, String> patchKeys = Collections.synchronizedMap(new WeakHashMap<>());
 		return Comparator.<ItemStack>comparingInt(stack -> primaryIndex(exact, firstOfItem, stack))
-			.thenComparing((a, b) -> tieBreak(ops, patchKeys, a, b));
+			.thenComparing((a, b) -> tieBreak(ops, a, b));
 	}
 
 	private static int primaryIndex(Object2IntOpenCustomHashMap<ItemStack> exact, Map<Item, Integer> firstOfItem, ItemStack stack) {
@@ -86,8 +88,8 @@ public final class CreativeOrder {
 	}
 
 	/** Placeholder tie-break (spec); kept in one place. */
-	private static int tieBreak(RegistryOps<JsonElement> ops, Map<ItemStack, String> patchKeys, ItemStack a, ItemStack b) {
-		int c = patchKey(ops, patchKeys, a).compareTo(patchKey(ops, patchKeys, b));
+	private static int tieBreak(RegistryOps<JsonElement> ops, ItemStack a, ItemStack b) {
+		int c = patchKey(ops, a).compareTo(patchKey(ops, b));
 		if (c != 0) {
 			return c;
 		}
@@ -99,20 +101,25 @@ public final class CreativeOrder {
 		return Integer.compare(b.getCount(), a.getCount());
 	}
 
-	private static String patchKey(RegistryOps<JsonElement> ops, Map<ItemStack, String> patchKeys, ItemStack stack) {
+	/**
+	 * Not cached: stacks are mutable, so a key must reflect the stack as it is now. Only reached
+	 * for stacks that tie on their list position and carry component changes.
+	 */
+	private static String patchKey(RegistryOps<JsonElement> ops, ItemStack stack) {
 		DataComponentPatch patch = stack.getComponentsPatch();
 		if (patch.isEmpty()) {
 			return "";
 		}
-		String cached = patchKeys.get(stack);
-		if (cached == null) {
-			JsonElement json = DataComponentPatch.CODEC.encodeStart(ops, patch).getOrThrow();
-			StringBuilder out = new StringBuilder();
-			canonical(json, out);
-			cached = out.toString();
-			patchKeys.put(stack, cached);
+		var encoded = DataComponentPatch.CODEC.encodeStart(ops, patch).result();
+		if (encoded.isEmpty()) {
+			if (WARNED.compareAndSet(false, true)) {
+				LOGGER.warn("Chestmate: could not encode a component patch for sorting; such stacks tie on components");
+			}
+			return "";
 		}
-		return cached;
+		StringBuilder out = new StringBuilder();
+		canonical(encoded.get(), out);
+		return out.toString();
 	}
 
 	/** Writes JSON with object keys sorted recursively, so equal data gives equal text on every JVM. */
