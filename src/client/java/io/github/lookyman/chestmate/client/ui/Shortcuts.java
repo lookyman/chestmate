@@ -52,15 +52,20 @@ public final class Shortcuts {
 		return new KeyMapping(name, InputConstants.UNKNOWN.getType(), InputConstants.UNKNOWN.getValue(), category);
 	}
 
+	/** Whether the input matches any Chestmate shortcut; on a Chestmate screen such input never reaches vanilla. */
+	static boolean isBound(Predicate<String> matchesShortcut) {
+		return KEY_NAMES.stream().anyMatch(matchesShortcut);
+	}
+
 	/**
-	 * The operation of the first matching shortcut (in {@link #KEY_NAMES} order) on a screen with these regions, or
-	 * empty if none matches or the matched one has no button there; then the input is left to vanilla.
+	 * The operation of the first matching shortcut (in {@link #KEY_NAMES} order) that has a button on a screen with
+	 * these regions, or empty if none does. A key shared by several shortcuts thus runs the first one that applies.
 	 */
 	static Optional<Operation> resolve(Predicate<String> matchesShortcut, MenuRegions regions) {
 		for (String name : KEY_NAMES) {
-			if (matchesShortcut.test(name)) {
-				Operation op = OPERATIONS.get(name);
-				return op.supportedBy(regions) ? Optional.of(op) : Optional.empty();
+			Operation op = OPERATIONS.get(name);
+			if (matchesShortcut.test(name) && op.supportedBy(regions)) {
+				return Optional.of(op);
 			}
 		}
 		return Optional.empty();
@@ -68,7 +73,8 @@ public final class Shortcuts {
 
 	/**
 	 * Called after every init of a supported screen. The shortcuts run before vanilla's input handling and consume the
-	 * input, so a key vanilla also uses in container screens (offhand swap, throw, pick block) does only one thing.
+	 * input, applicable or not, so a key vanilla also uses in container screens (offhand swap, throw, pick block) never
+	 * does both.
 	 */
 	public static void attach(Screen screen) {
 		if (!ScreenButtons.supports(screen) || !(screen instanceof AbstractContainerScreen<?> containerScreen)) {
@@ -121,14 +127,13 @@ public final class Shortcuts {
 		return false;
 	}
 
-	/** Runs the operation of the shortcut that matches; true (consume the input) if one ran. */
+	/** Runs the operation of the shortcut that matches, if it applies here; true (consume the input) if any matches. */
 	private static boolean trigger(AbstractContainerScreen<?> screen, Predicate<KeyMapping> matches) {
-		Optional<MenuRegions> regions = MenuRegions.of(screen.getMenu());
-		if (regions.isEmpty()) {
+		Predicate<String> shortcut = name -> matches.test(MAPPINGS.get(name));
+		if (!isBound(shortcut)) {
 			return false;
 		}
-		Optional<Operation> op = resolve(name -> matches.test(MAPPINGS.get(name)), regions.get());
-		op.ifPresent(Dispatcher::run);
-		return op.isPresent();
+		MenuRegions.of(screen.getMenu()).flatMap(regions -> resolve(shortcut, regions)).ifPresent(Dispatcher::run);
+		return true;
 	}
 }

@@ -1,12 +1,15 @@
 package io.github.lookyman.chestmate.client.ui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.lookyman.chestmate.core.MenuRegions;
 import io.github.lookyman.chestmate.core.Operation;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
@@ -39,11 +42,17 @@ class ShortcutsTest {
 	}
 
 	@Test
-	void containerOnlyKeysLeaveTheInputToVanillaOnTheInventoryScreen() {
-		// e.g. Put in bound to Q: on the inventory screen Q must still drop the hovered item
-		assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(Shortcuts.ORGANIZE_CONTAINER)::contains, INVENTORY));
-		assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(Shortcuts.PUT_IN)::contains, INVENTORY));
-		assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(Shortcuts.TAKE_OUT)::contains, INVENTORY));
+	void containerOnlyKeysRunNothingButAreStillConsumedOnTheInventoryScreen() {
+		// e.g. Put in bound to Q: on the inventory screen Q must neither drop the item nor run anything
+		for (String key : List.of(Shortcuts.ORGANIZE_CONTAINER, Shortcuts.PUT_IN, Shortcuts.TAKE_OUT)) {
+			assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(key)::contains, INVENTORY));
+			assertTrue(Shortcuts.isBound(Set.of(key)::contains));
+		}
+	}
+
+	@Test
+	void unboundInputIsNotConsumed() {
+		assertFalse(Shortcuts.isBound(Set.<String>of()::contains));
 	}
 
 	@Test
@@ -58,9 +67,9 @@ class ShortcutsTest {
 	}
 
 	@Test
-	void anUnsupportedFirstMatchDoesNotFallThroughOnTheInventoryScreen() {
-		// organize_container wins the conflict but doesn't apply; the input goes to vanilla, not to organize_inventory
-		assertEquals(Optional.empty(), Shortcuts.resolve(
-			Set.of(Shortcuts.ORGANIZE_CONTAINER, Shortcuts.ORGANIZE_INVENTORY)::contains, INVENTORY));
+	void aKeySharedByOrganizeContainerAndInventoryRunsWhicheverAppliesOnTheScreen() {
+		Predicate<String> both = Set.of(Shortcuts.ORGANIZE_CONTAINER, Shortcuts.ORGANIZE_INVENTORY)::contains;
+		assertEquals(Optional.of(Operation.ORGANIZE_INVENTORY), Shortcuts.resolve(both, INVENTORY));
+		assertEquals(Optional.of(Operation.ORGANIZE_CONTAINER), Shortcuts.resolve(both, CHEST));
 	}
 }
