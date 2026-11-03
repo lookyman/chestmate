@@ -7,7 +7,7 @@
 	"authors": [
 		"lookyman"
 	],
-	"license": "TBD",
+	"license": "MIT",
 	"icon": "assets/chestmate/icon.png",
 	"environment": "*",
 	"entrypoints": {
