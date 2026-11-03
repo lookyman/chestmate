@@ -563,4 +563,52 @@ class ClickExecutorTest {
 		assertTrue(view.carried().isEmpty());
 		assertTrue(ItemStack.matches(s(Items.DIRT, 1), view.get(0)));
 	}
+
+	@Test
+	void playerInputDuringSettleEndsItWithoutAPutBack() {
+		FakeView view = new FakeView(slots(s(Items.STONE, 3), E, s(Items.DIRT, 5)), E);
+		ClickExecutor ex = new ClickExecutor();
+		ex.start(view, List.of(Click.left(0), Click.left(1)), view.rules, regions(2, 3));
+		ex.tick(2.0);
+		assertTrue(ex.isBusy());
+		// the player picks up the dirt by hand: the screen reports the input before vanilla handles the click
+		ex.playerInput();
+		view.sim.apply(Click.left(2));
+		for (int i = 0; i < ClickExecutor.SETTLE_TICKS * 6; i++) {
+			ex.tick(1.0);
+		}
+		assertFalse(ex.isBusy());
+		assertEquals(List.of(Click.left(0), Click.left(1)), view.sent);
+		assertEquals(5, view.carried().getCount());
+	}
+
+	@Test
+	void playerInputDuringARunStopsItWithoutSettling() {
+		FakeView view = new FakeView(slots(s(Items.STONE, 3), E, s(Items.DIRT, 5)), E);
+		ClickExecutor ex = new ClickExecutor();
+		ex.start(view, tenClicks(), view.rules, regions(2, 3));
+		ex.tick(2.0);
+		ex.playerInput();
+		view.sim.apply(Click.left(2));
+		for (int i = 0; i < ClickExecutor.SETTLE_TICKS * 6; i++) {
+			ex.tick(1.0);
+		}
+		assertFalse(ex.isBusy());
+		assertEquals(2, view.sent.size());
+		assertEquals(5, view.carried().getCount());
+	}
+
+	@Test
+	void withoutPlayerInputSettleStillPutsBackACursorStack() {
+		FakeView view = new FakeView(slots(s(Items.STONE, 3), E, s(Items.DIRT, 5)), E);
+		ClickExecutor ex = new ClickExecutor();
+		ex.start(view, List.of(Click.left(0), Click.left(1)), view.rules, regions(2, 3));
+		ex.tick(2.0);
+		// a late correction (not the player) leaves the dirt on the cursor
+		view.sim.apply(Click.left(2));
+		ex.tick(1.0);
+		assertEquals(3, view.sent.size());
+		assertTrue(view.carried().isEmpty());
+		assertTrue(ItemStack.matches(s(Items.DIRT, 5), view.get(0)));
+	}
 }

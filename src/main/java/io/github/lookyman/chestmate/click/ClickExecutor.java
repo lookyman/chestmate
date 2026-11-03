@@ -136,6 +136,15 @@ public final class ClickExecutor {
 		clear();
 	}
 
+	/**
+	 * The player clicked or pressed a slot key in the screen (reported before vanilla handles it). The player now owns
+	 * the cursor: a run stops without a put-back and without settling, and a settle phase ends, so no click of ours
+	 * moves a stack the player picked up. Our own clicks never call this.
+	 */
+	public void playerInput() {
+		clear();
+	}
+
 	private void startSettling() {
 		running = false;
 		plan = List.of();

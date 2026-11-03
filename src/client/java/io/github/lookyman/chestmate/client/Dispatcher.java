@@ -80,4 +80,9 @@ public final class Dispatcher {
 	public static void stop() {
 		EXECUTOR.stop();
 	}
+
+	/** The player clicked or pressed a slot key in a supported screen: stop a run or settle phase without clicking. */
+	public static void playerInput() {
+		EXECUTOR.playerInput();
+	}
 }

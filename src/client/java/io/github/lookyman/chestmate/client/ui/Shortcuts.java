@@ -12,7 +12,10 @@ import java.util.function.Predicate;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
+import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
@@ -85,10 +88,51 @@ public final class Shortcuts {
 		if (!ScreenButtons.supports(screen) || !(screen instanceof AbstractContainerScreen<?> containerScreen)) {
 			return;
 		}
-		ScreenKeyboardEvents.allowKeyPress(screen).register((s, event) ->
-			s.isInputCaptured() || !trigger(containerScreen, mapping -> mapping.matches(event)));
-		ScreenMouseEvents.allowMouseClick(screen).register((s, event) ->
-			!trigger(containerScreen, mapping -> mapping.matchesMouse(event)));
+		ScreenKeyboardEvents.allowKeyPress(screen).register((s, event) -> {
+			if (s.isInputCaptured()) {
+				return true;
+			}
+			if (trigger(containerScreen, mapping -> mapping.matches(event))) {
+				return false;
+			}
+			if (actsOnSlots(mapping -> mapping.matches(event))) {
+				Dispatcher.playerInput();
+			}
+			return true;
+		});
+		ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
+			if (trigger(containerScreen, mapping -> mapping.matchesMouse(event))) {
+				return false;
+			}
+			if (!onChestmateButton(s, event.x(), event.y())) {
+				Dispatcher.playerInput();
+			}
+			return true;
+		});
+	}
+
+	/** Vanilla keys that move stacks in a container screen: hotbar swaps, offhand swap, drop, pick block. */
+	private static boolean actsOnSlots(Predicate<KeyMapping> matches) {
+		Options options = Minecraft.getInstance().options;
+		if (matches.test(options.keySwapOffhand) || matches.test(options.keyDrop) || matches.test(options.keyPickItem)) {
+			return true;
+		}
+		for (KeyMapping hotbar : options.keyHotbarSlots) {
+			if (matches.test(hotbar)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** A press on our own button is not slot input; while a run settles, the button press is ignored as busy. */
+	private static boolean onChestmateButton(Screen screen, double x, double y) {
+		for (var widget : Screens.getWidgets(screen)) {
+			if (widget instanceof AnchoredButton button && button.isMouseOver(x, y)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Runs the operation of the shortcut that matches; true (consume the input) if one ran. */
