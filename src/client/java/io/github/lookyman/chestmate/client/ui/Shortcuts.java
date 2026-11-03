@@ -3,10 +3,11 @@ package io.github.lookyman.chestmate.client.ui;
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.lookyman.chestmate.Chestmate;
 import io.github.lookyman.chestmate.client.Dispatcher;
-import io.github.lookyman.chestmate.client.mixin.AbstractContainerScreenAccessor;
 import io.github.lookyman.chestmate.core.MenuRegions;
 import io.github.lookyman.chestmate.core.Operation;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -18,30 +19,33 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.world.inventory.Slot;
 
-/** The three unbound-by-default shortcuts, active on the screens that have Chestmate buttons. */
+/** One unbound-by-default shortcut per button, active on the screens that show that button. */
 public final class Shortcuts {
-	static final int NO_SLOT = -1;
-	static final String ORGANIZE = "key.chestmate.organize";
+	static final String ORGANIZE_CONTAINER = "key.chestmate.organize_container";
+	static final String ORGANIZE_INVENTORY = "key.chestmate.organize_inventory";
 	static final String PUT_IN = "key.chestmate.put_in";
 	static final String TAKE_OUT = "key.chestmate.take_out";
-	static final List<String> KEY_NAMES = List.of(ORGANIZE, PUT_IN, TAKE_OUT);
+	/** In conflict-resolution order: the first matching one wins. */
+	static final List<String> KEY_NAMES = List.of(ORGANIZE_CONTAINER, ORGANIZE_INVENTORY, PUT_IN, TAKE_OUT);
 	/** The label key vanilla derives from the category id {@code chestmate:main}. */
 	static final String CATEGORY_LABEL_KEY = "key.category.chestmate.main";
 
-	private static KeyMapping organize;
-	private static KeyMapping putIn;
-	private static KeyMapping takeOut;
+	private static final Map<String, Operation> OPERATIONS = Map.of(
+		ORGANIZE_CONTAINER, Operation.ORGANIZE_CONTAINER,
+		ORGANIZE_INVENTORY, Operation.ORGANIZE_INVENTORY,
+		PUT_IN, Operation.PUT_IN,
+		TAKE_OUT, Operation.TAKE_OUT);
+	private static final Map<String, KeyMapping> MAPPINGS = new HashMap<>();
 
 	private Shortcuts() {
 	}
 
 	public static void register() {
 		KeyMapping.Category category = KeyMapping.Category.register(Chestmate.id("main"));
-		organize = KeyMappingHelper.registerKeyMapping(unbound(ORGANIZE, category));
-		putIn = KeyMappingHelper.registerKeyMapping(unbound(PUT_IN, category));
-		takeOut = KeyMappingHelper.registerKeyMapping(unbound(TAKE_OUT, category));
+		for (String name : KEY_NAMES) {
+			MAPPINGS.put(name, KeyMappingHelper.registerKeyMapping(unbound(name, category)));
+		}
 	}
 
 	private static KeyMapping unbound(String name, KeyMapping.Category category) {
@@ -49,35 +53,17 @@ public final class Shortcuts {
 	}
 
 	/**
-	 * Organize acts on the region under the mouse; with no storage slot hovered it prefers the container, if the
-	 * screen has one.
+	 * The operation of the first matching shortcut (in {@link #KEY_NAMES} order) on a screen with these regions, or
+	 * empty if none matches or the matched one has no button there; then the input is left to vanilla.
 	 */
-	static Operation organizeTarget(int hoveredMenuSlot, MenuRegions regions) {
-		if (regions.container().contains(hoveredMenuSlot)) {
-			return Operation.ORGANIZE_CONTAINER;
+	static Optional<Operation> resolve(Predicate<String> matchesShortcut, MenuRegions regions) {
+		for (String name : KEY_NAMES) {
+			if (matchesShortcut.test(name)) {
+				Operation op = OPERATIONS.get(name);
+				return op.supportedBy(regions) ? Optional.of(op) : Optional.empty();
+			}
 		}
-		if (regions.main().contains(hoveredMenuSlot)) {
-			return Operation.ORGANIZE_INVENTORY;
-		}
-		return regions.container().isEmpty() ? Operation.ORGANIZE_INVENTORY : Operation.ORGANIZE_CONTAINER;
-	}
-
-	/**
-	 * The operation the first matching shortcut (Organize, then Put in, then Take out) runs on a screen with these
-	 * regions, or empty if none matches or the matched one doesn't apply there; then the input is left to vanilla.
-	 */
-	static Optional<Operation> resolve(Predicate<String> matchesShortcut, int hoveredMenuSlot, MenuRegions regions) {
-		Operation op;
-		if (matchesShortcut.test(ORGANIZE)) {
-			op = organizeTarget(hoveredMenuSlot, regions);
-		} else if (matchesShortcut.test(PUT_IN)) {
-			op = Operation.PUT_IN;
-		} else if (matchesShortcut.test(TAKE_OUT)) {
-			op = Operation.TAKE_OUT;
-		} else {
-			return Optional.empty();
-		}
-		return op.supportedBy(regions) ? Optional.of(op) : Optional.empty();
+		return Optional.empty();
 	}
 
 	/**
@@ -141,19 +127,8 @@ public final class Shortcuts {
 		if (regions.isEmpty()) {
 			return false;
 		}
-		Slot hovered = ((AbstractContainerScreenAccessor) screen).chestmate$getHoveredSlot();
-		Optional<Operation> op = resolve(name -> matches.test(mapping(name)), hovered == null ? NO_SLOT : hovered.index,
-			regions.get());
+		Optional<Operation> op = resolve(name -> matches.test(MAPPINGS.get(name)), regions.get());
 		op.ifPresent(Dispatcher::run);
 		return op.isPresent();
-	}
-
-	private static KeyMapping mapping(String name) {
-		return switch (name) {
-			case ORGANIZE -> organize;
-			case PUT_IN -> putIn;
-			case TAKE_OUT -> takeOut;
-			default -> throw new IllegalArgumentException(name);
-		};
 	}
 }

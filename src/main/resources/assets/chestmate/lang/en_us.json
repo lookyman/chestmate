@@ -6,7 +6,8 @@
 	"chestmate.button.organize_inventory": "Organize inventory",
 	"chestmate.button.put_in": "Put everything in",
 	"chestmate.button.take_out": "Take everything out",
-	"key.chestmate.organize": "Organize",
+	"key.chestmate.organize_container": "Organize container",
+	"key.chestmate.organize_inventory": "Organize inventory",
 	"key.chestmate.put_in": "Put everything in",
 	"key.chestmate.take_out": "Take everything out",
 	"key.category.chestmate.main": "Chestmate"

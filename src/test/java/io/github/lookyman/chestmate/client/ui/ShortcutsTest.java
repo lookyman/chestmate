@@ -18,62 +18,49 @@ class ShortcutsTest {
 	private static final MenuRegions INVENTORY = new MenuRegions(List.of(), IntStream.range(9, 36).boxed().toList());
 
 	@Test
-	void organizeHoveredContainerSlot() {
-		assertEquals(Operation.ORGANIZE_CONTAINER, Shortcuts.organizeTarget(0, CHEST));
-		assertEquals(Operation.ORGANIZE_CONTAINER, Shortcuts.organizeTarget(26, CHEST));
-	}
-
-	@Test
-	void organizeHoveredMainSlot() {
-		assertEquals(Operation.ORGANIZE_INVENTORY, Shortcuts.organizeTarget(27, CHEST));
-		assertEquals(Operation.ORGANIZE_INVENTORY, Shortcuts.organizeTarget(53, CHEST));
-		assertEquals(Operation.ORGANIZE_INVENTORY, Shortcuts.organizeTarget(9, INVENTORY));
-	}
-
-	@Test
-	void noHoveredStorageSlotPrefersTheContainer() {
-		assertEquals(Operation.ORGANIZE_CONTAINER, Shortcuts.organizeTarget(Shortcuts.NO_SLOT, CHEST));
-		assertEquals(Operation.ORGANIZE_CONTAINER, Shortcuts.organizeTarget(60, CHEST)); // hotbar
-	}
-
-	@Test
-	void noHoveredStorageSlotWithoutContainerOrganizesInventory() {
-		assertEquals(Operation.ORGANIZE_INVENTORY, Shortcuts.organizeTarget(Shortcuts.NO_SLOT, INVENTORY));
-		assertEquals(Operation.ORGANIZE_INVENTORY, Shortcuts.organizeTarget(0, INVENTORY)); // crafting result
-		assertEquals(Operation.ORGANIZE_INVENTORY, Shortcuts.organizeTarget(40, INVENTORY)); // hotbar
-	}
-
-	@Test
 	void resolveRunsNothingWhenNoShortcutMatches() {
-		assertEquals(Optional.empty(), Shortcuts.resolve(Set.<String>of()::contains, 0, CHEST));
+		assertEquals(Optional.empty(), Shortcuts.resolve(Set.<String>of()::contains, CHEST));
 	}
 
 	@Test
-	void resolveOrganizeUsesTheHoveredRegion() {
+	void eachKeyMapsToExactlyOneOperationOnAContainerScreen() {
+		assertEquals(Optional.of(Operation.ORGANIZE_CONTAINER),
+			Shortcuts.resolve(Set.of(Shortcuts.ORGANIZE_CONTAINER)::contains, CHEST));
 		assertEquals(Optional.of(Operation.ORGANIZE_INVENTORY),
-			Shortcuts.resolve(Set.of(Shortcuts.ORGANIZE)::contains, 30, CHEST));
-		assertEquals(Optional.of(Operation.ORGANIZE_CONTAINER),
-			Shortcuts.resolve(Set.of(Shortcuts.ORGANIZE)::contains, Shortcuts.NO_SLOT, CHEST));
+			Shortcuts.resolve(Set.of(Shortcuts.ORGANIZE_INVENTORY)::contains, CHEST));
+		assertEquals(Optional.of(Operation.PUT_IN), Shortcuts.resolve(Set.of(Shortcuts.PUT_IN)::contains, CHEST));
+		assertEquals(Optional.of(Operation.TAKE_OUT), Shortcuts.resolve(Set.of(Shortcuts.TAKE_OUT)::contains, CHEST));
 	}
 
 	@Test
-	void resolvePutInAndTakeOutOnAContainerScreen() {
-		assertEquals(Optional.of(Operation.PUT_IN), Shortcuts.resolve(Set.of(Shortcuts.PUT_IN)::contains, 0, CHEST));
-		assertEquals(Optional.of(Operation.TAKE_OUT), Shortcuts.resolve(Set.of(Shortcuts.TAKE_OUT)::contains, 0, CHEST));
+	void organizeInventoryAlsoWorksOnTheInventoryScreen() {
+		assertEquals(Optional.of(Operation.ORGANIZE_INVENTORY),
+			Shortcuts.resolve(Set.of(Shortcuts.ORGANIZE_INVENTORY)::contains, INVENTORY));
 	}
 
 	@Test
-	void resolveLeavesPutInAndTakeOutToVanillaWithoutAContainer() {
+	void containerOnlyKeysLeaveTheInputToVanillaOnTheInventoryScreen() {
 		// e.g. Put in bound to Q: on the inventory screen Q must still drop the hovered item
-		assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(Shortcuts.PUT_IN)::contains, 9, INVENTORY));
-		assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(Shortcuts.TAKE_OUT)::contains, 9, INVENTORY));
+		assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(Shortcuts.ORGANIZE_CONTAINER)::contains, INVENTORY));
+		assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(Shortcuts.PUT_IN)::contains, INVENTORY));
+		assertEquals(Optional.empty(), Shortcuts.resolve(Set.of(Shortcuts.TAKE_OUT)::contains, INVENTORY));
 	}
 
 	@Test
-	void resolvePrefersOrganizeWhenSeveralShortcutsShareAnInput() {
-		assertEquals(Optional.of(Operation.ORGANIZE_CONTAINER),
-			Shortcuts.resolve(Set.of(Shortcuts.ORGANIZE, Shortcuts.PUT_IN, Shortcuts.TAKE_OUT)::contains, 0, CHEST));
+	void resolveFirstMatchWinsInDeclaredOrder() {
+		assertEquals(Optional.of(Operation.ORGANIZE_CONTAINER), Shortcuts.resolve(
+			Set.of(Shortcuts.ORGANIZE_CONTAINER, Shortcuts.ORGANIZE_INVENTORY, Shortcuts.PUT_IN, Shortcuts.TAKE_OUT)::contains,
+			CHEST));
+		assertEquals(Optional.of(Operation.ORGANIZE_INVENTORY), Shortcuts.resolve(
+			Set.of(Shortcuts.ORGANIZE_INVENTORY, Shortcuts.PUT_IN, Shortcuts.TAKE_OUT)::contains, CHEST));
 		assertEquals(Optional.of(Operation.PUT_IN),
-			Shortcuts.resolve(Set.of(Shortcuts.PUT_IN, Shortcuts.TAKE_OUT)::contains, 0, CHEST));
+			Shortcuts.resolve(Set.of(Shortcuts.PUT_IN, Shortcuts.TAKE_OUT)::contains, CHEST));
+	}
+
+	@Test
+	void anUnsupportedFirstMatchDoesNotFallThroughOnTheInventoryScreen() {
+		// organize_container wins the conflict but doesn't apply; the input goes to vanilla, not to organize_inventory
+		assertEquals(Optional.empty(), Shortcuts.resolve(
+			Set.of(Shortcuts.ORGANIZE_CONTAINER, Shortcuts.ORGANIZE_INVENTORY)::contains, INVENTORY));
 	}
 }
