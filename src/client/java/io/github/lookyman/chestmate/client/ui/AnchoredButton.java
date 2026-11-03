@@ -33,6 +33,15 @@ public final class AnchoredButton extends Button {
 		reposition();
 	}
 
+	/**
+	 * A mouse click must not leave the button focused (and so drawn highlighted) until another widget is clicked.
+	 * Keyboard and controller navigation set focus on their own path and are unaffected.
+	 */
+	@Override
+	public boolean shouldTakeFocusAfterInteraction() {
+		return false;
+	}
+
 	public void reposition() {
 		setPosition(anchor.chestmate$getLeftPos() + offsetX, anchor.chestmate$getTopPos() + offsetY);
 	}
